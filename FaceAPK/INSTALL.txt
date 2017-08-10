@@ -1,0 +1,4 @@
+1. Before running apk, please make dir FaceRec at Root of SD Card
+2. Copy model file (fa.bin,fd.bin,fr.bin), to FaceRec folder
+
+

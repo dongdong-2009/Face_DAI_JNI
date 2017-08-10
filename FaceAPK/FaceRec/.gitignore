@@ -1,0 +1,12 @@
+*.iml
+.gradle
+.idea
+/local.properties
+/.idea/workspace.xml
+/.idea/libraries
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+openCVLibrary/build
+app/src/main/jniLibs/armeabi-v7a/libnative-lib.so
