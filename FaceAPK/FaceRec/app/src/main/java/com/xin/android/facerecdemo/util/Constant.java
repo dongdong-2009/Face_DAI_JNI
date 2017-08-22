@@ -1,5 +1,12 @@
 package com.xin.android.facerecdemo.util;
 
+import android.os.Environment;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+
 /**
  * Project ${PROJECT}
  * Created by danny on 2017/8/3.
@@ -21,4 +28,56 @@ public class Constant {
     public static final int SHOW_FACE_COMPARE_RESULT_MESSAGE = 10040;
 
     public static final String LOCK = "lock";
+
+    public static String getHomePath() {
+        String path = Environment.getExternalStorageDirectory().getAbsolutePath()
+                + "/FaceRec/";
+        File file = new File(path);
+
+        if (!file.exists()) {
+            file.mkdir();
+        }
+        return path;
+    }
+
+    public static boolean hasServerConfi() {
+        String licensePath = getHomePath() + "server.conf";
+        File file = new File(licensePath);
+
+        if (!file.exists()) {
+            return false;
+        }
+        return true;
+    }
+
+    public static String readServerInfo() {
+        String server = "";
+
+        String licensePath = getHomePath() + "server.conf";
+        File file = new File(licensePath);
+
+        if (!file.exists()) {
+            return server;
+        }
+
+        BufferedReader reader = null;
+        try {
+            reader = new BufferedReader(new FileReader(file));
+            String tempString;
+            while ((tempString = reader.readLine()) != null) {
+                server = server + tempString;
+            }
+            reader.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e1) {
+                }
+            }
+        }
+        return server;
+    }
 }

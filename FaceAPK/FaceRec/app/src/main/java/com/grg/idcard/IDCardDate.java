@@ -41,4 +41,8 @@ public class IDCardDate {
 	public String toString() {
 		return String.valueOf(year) + "." + String.valueOf(month) + "." + String.valueOf(day);
 	}
+
+    public String toNumString() {
+        return String.valueOf(year) + String.valueOf(month) + String.valueOf(day);
+    }
 }

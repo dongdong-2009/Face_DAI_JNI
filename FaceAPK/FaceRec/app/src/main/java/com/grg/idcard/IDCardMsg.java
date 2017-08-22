@@ -152,7 +152,7 @@ public class IDCardMsg {
 		if(getNation() > NATION_TABLE.length - 1 || nation < 0) {
 			return "未知";
 		}
-		return NATION_TABLE[nation];
+		return NATION_TABLE[nation] + "族";
 	}
 	
 	/** Nation table */

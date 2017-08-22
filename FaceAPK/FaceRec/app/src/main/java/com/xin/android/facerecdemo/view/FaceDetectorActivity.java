@@ -4,10 +4,14 @@ import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.hardware.Camera;
+import android.media.AudioAttributes;
+import android.media.AudioManager;
+import android.media.SoundPool;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.view.WindowManager;
@@ -22,6 +26,7 @@ import com.xin.android.facerecdemo.bean.FaceInfo;
 import com.xin.android.facerecdemo.bean.ImageData;
 import com.xin.android.facerecdemo.bean.Rect;
 import com.xin.android.facerecdemo.util.Constant;
+import com.xin.android.facerecdemo.util.EncryptUtils;
 import com.xin.android.facerecdemo.util.JniLoader;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -36,11 +41,17 @@ import org.opencv.core.Scalar;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.Socket;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import static com.xin.android.facerecdemo.util.Constant.CLEAR_CAMERA_IMAGE_MESSAGE;
 
@@ -55,6 +66,9 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
     private IDCardMsg lastCardMsg = null;
 
     private static final String LOCK_BITMAP = "lock_bitmap";
+
+    private String SERVER_IP = "192.168.1.100";
+    private int SERVER_PORT = 5958;
 
     private Mat mRgba;
     private Mat mGray;
@@ -87,6 +101,9 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
     private int mWidth = 0;
 
     private boolean isFrontCamera = false;
+
+    private static final int THRESHOULD_VALUE = 38;
+    private int mSimilarity  = 60;
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
@@ -150,6 +167,16 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         if (result != 0) {
             JniLoader.getInstance().callInitFaceRec(1, gPath);
         }
+
+
+        String server = Constant.readServerInfo().trim();
+        if (!TextUtils.isEmpty(server)) {
+            String info[] = server.split(":");
+            SERVER_IP = info[0];
+            SERVER_PORT = Integer.parseInt(info[1]);
+        }
+
+        Log.d(TAG, SERVER_IP + ":" + SERVER_PORT);
     }
 
     private void findViews() {
@@ -185,6 +212,8 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         if (mIDCardRecognition != null) {
             mIDCardRecognition.close();
         }
+
+        prepareVoice();
     }
 
     @Override
@@ -193,7 +222,9 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
     }
 
-    public void onDestroy() {
+    public void onDestroy()
+    {
+        mSoundPool.release();
         super.onDestroy();
     }
 
@@ -227,15 +258,17 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             synchronized (Constant.LOCK) {
                 ArrayList<FaceInfo> faceList = faceDetection();
 
-                if (faceList.size() == 1 && updateImage) {
+                if (faceList.size() >= 1 && updateImage) {
                     Rect rect = faceList.get(0).getBbox();
 
                     Log.d(TAG, "faceInfo rect == " + rect.toString());
                     int faceCenterX = rect.getX() + rect.getWidth() / 2;
                     int faceCenterY = rect.getY() + rect.getHeight() / 2;
 
-                    if (mWidth / 2 - 100 < faceCenterX && faceCenterX < mWidth / 2 + 100 &&
-                            mHeight / 2 - 100 < faceCenterY && faceCenterY < mHeight / 2 + 100) {
+                    if (((mWidth / 2 - 100) < faceCenterX) &&
+                            (faceCenterX < (mWidth / 2 + 100)) &&
+                            ((mHeight / 2 - 100) < faceCenterY) &&
+                            (faceCenterY < (mHeight / 2 + 100))) {
                         updateImage = false;
                         mSelectedBitmap = Bitmap.createBitmap(mRgba.cols(), mRgba.rows(), Bitmap
                                 .Config.RGB_565);
@@ -248,9 +281,10 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                                 1000 * 20);
                     }
 
-                } else if (faceList.size() > 1) {
-                    myHandler.sendEmptyMessage(Constant.FIND_MULT_FACE_MESSAGE);
                 }
+                //else if (faceList.size() > 1) {
+                //    myHandler.sendEmptyMessage(Constant.FIND_MULT_FACE_MESSAGE);
+                //}
 
                 for (int i = 0; i < faceList.size(); i++) {
                     Rect faceRect = faceList.get(i).getBbox();
@@ -347,10 +381,19 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             if (Float.isNaN(similarity)) {
                 Log.e(TAG, "Float.NaN");
             } else {
+
+                mSimilarity = Math.round(similarity * 100);
+
+//                if (connectWithTcp(SERVER_IP, SERVER_PORT)) {
+//                    Log.d(TAG, "Finished uploading the data to server");
+//                } else {
+//                    Log.d(TAG, "Error when Uploading the data to server");
+//                }
+
                 Message msg = new Message();
                 msg.what = Constant.SHOW_FACE_COMPARE_RESULT_MESSAGE;
                 Bundle bundle = new Bundle();
-                bundle.putFloat("similarity", similarity);
+                bundle.putFloat("similarity", mSimilarity);
                 msg.setData(bundle);
                 myHandler.sendMessage(msg);
             }
@@ -359,6 +402,28 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         }
         updateImage = true;
         isFaceComparing = false;
+    }
+
+
+
+    private SoundPool mSoundPool;
+    private HashMap<Integer, Integer> soundID = new HashMap<Integer, Integer>();
+
+    private void prepareVoice() {
+        SoundPool.Builder builder = new SoundPool.Builder();
+        //传入音频数量
+        builder.setMaxStreams(2);
+        //AudioAttributes是一个封装音频各种属性的方法
+        AudioAttributes.Builder attrBuilder = new AudioAttributes.Builder();
+        //设置音频流的合适的属性
+        attrBuilder.setLegacyStreamType(AudioManager.STREAM_MUSIC);
+        //加载一个AudioAttributes
+        builder.setAudioAttributes(attrBuilder.build());
+        mSoundPool = builder.build();
+
+        soundID.put(1, mSoundPool.load(this, R.raw.verify_success, 1));
+        soundID.put(2, mSoundPool.load(this, R.raw.verify_fail, 1));
+//        soundID.put(2, mSoundPool.load(getAssets().openFd("assets.mp3"), 1));  //需要捕获IO异常
     }
 
     private ArrayList<FaceInfo> faceDetection() {
@@ -433,7 +498,8 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                 case Constant.SHOW_FACE_COMPARE_RESULT_MESSAGE:
                     float similarity = msg.getData().getFloat("similarity");
 //                    Toast.makeText(FaceDetectorActivity.this, "" + similarity, Toast.LENGTH_LONG).show();
-                    if (similarity > 0.38) {
+                    if (similarity > THRESHOULD_VALUE) {
+                        mSoundPool.play(soundID.get(1), 1, 1, 0, 0, 1);
                         mCompareValue.setTextColor(getResources().getColor(R.color.green));
                         mCompareValue.setVisibility(View.VISIBLE);
                         mCompareValue.setText("" + similarity);
@@ -443,6 +509,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                         mCompareResult.setText("验证成功");
 
                     } else {
+                        mSoundPool.play(soundID.get(2), 1, 1, 0, 0, 1);
                         mCompareValue.setTextColor(getResources().getColor(R.color.red));
                         mCompareValue.setVisibility(View.VISIBLE);
                         mCompareValue.setText("" + similarity);
@@ -480,7 +547,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
     private IDCardRecListener mIDCardRecListener = new IDCardRecognition.IDCardRecListener() {
         @Override
         public void onResp(IDCardMsg info) {
-            Log.d(TAG, "IDCardRecListener  onResp");
+            Log.d(TAG, "IDCardRecListener onResp");
 
             if (info == null) {
                 mIdImage.setImageBitmap(null);
@@ -502,16 +569,16 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             }
 
             lastCardMsg = info;
-            String text = info.getName() + "\n"
-                    + info.getSexStr() + "\n"
-                    + info.getNationStr() + "族" + "\n"
-                    + info.getBirthDate() + "\n"
-                    + info.getIdCardNum() + "\n"
-                    + info.getAddress() + "\n"
-                    + info.getUsefulEndDate() + "--" + info.getUsefulStartDate() + "\n"
-                    + info.getSignOffice() + "\n";
+//            String text = info.getName() + "\n"
+//                    + info.getSexStr() + "\n"
+//                    + info.getNationStr() + "\n"
+//                    + info.getBirthDate() + "\n"
+//                    + info.getIdCardNum() + "\n"
+//                    + info.getAddress() + "\n"
+//                    + info.getUsefulEndDate() + "--" + info.getUsefulStartDate() + "\n"
+//                    + info.getSignOffice() + "\n";
 //            mIdTextView.setText(text);
-            Log.d(TAG, "text == " + text);
+//            Log.d(TAG, "text == " + text);
             mIdName.setText(info.getName());
             mIdSex.setText(info.getSexStr());
             mIdNation.setText(info.getNationStr());
@@ -525,6 +592,132 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
 
             myHandler.sendEmptyMessage(Constant.START_FACE_COMPARE_MESSAGE);
             myHandler.sendEmptyMessageDelayed(Constant.CLEAR_ID_INFO_MESSAGE, 5000);
+
         }
     };
+
+    public byte[] getBytesFromInputStream(InputStream is) throws IOException {
+        try (ByteArrayOutputStream os = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[0xFFFF];
+
+            for (int len; (len = is.read(buffer)) != -1; )
+                os.write(buffer, 0, len);
+
+            os.flush();
+
+            return os.toByteArray();
+        }
+    }
+
+    private byte[] bitmap2Bytes(Bitmap bm) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//        bm.compress(Bitmap.CompressFormat.PNG, 100, baos);
+        bm.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+        return baos.toByteArray();
+    }
+
+    private byte[] int2Bytes(int value) {
+        return new byte[]{
+                (byte) value,
+                (byte) (value >>> 8),
+                (byte) (value >>> 16),
+                (byte) (value >>> 24)};
+    }
+
+    public boolean connectWithTcp(String ip, int port) {
+        Socket socket;
+        boolean updated = false;
+
+        try {
+            socket = new Socket(ip, port);
+
+            DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
+
+            byte[] data = new byte[552];
+
+            byte[] header = "test".getBytes(); 	//"test"是测试厂商码，等测试通过后联系云辰，会分配发布厂商码
+            System.arraycopy(header, 0, data, 0, header.length);    //8
+
+//            System.arraycopy(int2Bytes(80+256*60), 0, data, 8, 4);   //4
+            System.arraycopy(int2Bytes(mSimilarity + 256 * THRESHOULD_VALUE), 0, data, 8, 4);   //4
+
+//            byte[] szName = "李明".getBytes("GB2312");
+            byte[] szName = lastCardMsg.getName().getBytes("GB2312");
+            System.arraycopy(szName, 0, data, 12, szName.length); //64
+
+//            byte[] szCertifiCode = "131002199011142256".getBytes("GB2312");
+            byte[] szCertifiCode = lastCardMsg.getIdCardNum().getBytes("GB2312");
+            System.arraycopy(szCertifiCode, 0, data, 76, szCertifiCode.length); //20
+
+//            byte[] szNation = "汉族".getBytes("GB2312");
+            byte[] szNation = lastCardMsg.getNationStr().getBytes("GB2312");
+            System.arraycopy(szNation, 0, data, 96, szNation.length); //20
+
+//            byte[] szExpiredDate = "2016082420360824".getBytes("GB2312");
+            String useDate = lastCardMsg.getUsefulStartDate().toNumString() + lastCardMsg
+                    .getUsefulEndDate().toNumString();
+            byte[] szExpiredDate = useDate.getBytes("GB2312");
+            System.arraycopy(szExpiredDate, 0, data, 116, szExpiredDate.length); //20
+
+            int sex = lastCardMsg.getSex();
+            System.arraycopy(int2Bytes(sex), 0, data, 136, 4);   //4
+
+//            byte[] szBirthday = "20160824".getBytes("GB2312");
+            byte[] szBirthday = lastCardMsg.getBirthDate().toNumString().getBytes("GB2312");
+            System.arraycopy(szBirthday, 0, data, 140, szBirthday.length); //20
+
+//            byte[] szAddress = "上海市南京西路19号".getBytes("GB2312");
+            byte[] szAddress = lastCardMsg.getAddress().getBytes("GB2312");
+            System.arraycopy(szAddress, 0, data, 160, szAddress.length); //128
+
+//            byte[] szOrgan = "上海市公安市局黄浦分局".getBytes("GB2312");
+            byte[] szOrgan = lastCardMsg.getSignOffice().getBytes("GB2312");
+            System.arraycopy(szOrgan, 0, data, 288, szOrgan.length); //128
+
+            byte[] szBackup = "Sam111111-222222".getBytes("GB2312");
+            System.arraycopy(szBackup, 0, data, 416, szBackup.length); //128
+
+            InputStream stream1 = null;
+            InputStream stream2 = null;
+            stream1 = new FileInputStream(new File(gPath + "/id.jpg"));
+
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inSampleSize = 1;
+            Bitmap bitmap1 = BitmapFactory.decodeStream(stream1, null, opts);
+
+            stream2 = new FileInputStream(new File(gPath + "/selected.jpg"));
+            opts.inSampleSize = 4;
+            Bitmap bitmap2 = BitmapFactory.decodeStream(stream2, null, opts);
+
+//            byte[] imgByte1 = getBytesFromInputStream(stream1);
+//            byte[] imgByte2 = getBytesFromInputStream(stream2);
+
+            byte[] imgByte1 = bitmap2Bytes(bitmap1);
+            byte[] imgByte2 = bitmap2Bytes(bitmap2);
+
+
+            System.arraycopy(int2Bytes(imgByte1.length), 0, data, 544, 4);   //4
+            System.arraycopy(int2Bytes(imgByte2.length), 0, data, 548, 4);   //4
+
+//            System.arraycopy(int2Bytes(mIdBitmap.getByteCount()), 0, data, 544, 4);   //4
+//            System.arraycopy(int2Bytes(mSelectedBitmap.getByteCount()), 0, data, 548, 4);   //4
+
+            dataOutputStream.write(EncryptUtils.encryptDES(data, "testtest".getBytes()));	//"testtest"是测试加密密钥，等测试通过后联系云辰，会分配发布加密密钥
+
+            dataOutputStream.write(imgByte1);
+            dataOutputStream.write(imgByte2);
+
+
+            updated = true;
+
+            dataOutputStream.close();
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+            Log.e("Socket", "connectWithTcp: ", e);
+            updated = false;
+        }
+
+        return updated;
+    }
 }
