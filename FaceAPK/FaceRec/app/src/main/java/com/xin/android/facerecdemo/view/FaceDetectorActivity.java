@@ -3,7 +3,6 @@ package com.xin.android.facerecdemo.view;
 import android.app.Activity;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.hardware.Camera;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
 import android.media.SoundPool;
@@ -53,7 +52,7 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-import static com.xin.android.facerecdemo.util.Constant.CLEAR_CAMERA_IMAGE_MESSAGE;
+import static com.xin.android.facerecdemo.util.Constant.CLEAR_ID_INFO_MESSAGE;
 
 public class FaceDetectorActivity extends Activity implements CvCameraViewListener2 {
 
@@ -67,8 +66,9 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
 
     private static final String LOCK_BITMAP = "lock_bitmap";
 
-    private String SERVER_IP = "192.168.1.100";
+    private String SERVER_IP;
     private int SERVER_PORT = 5958;
+    private int THRESHOLD_VALUE = 50;
 
     private Mat mRgba;
     private Mat mGray;
@@ -102,7 +102,6 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
 
     private boolean isFrontCamera = false;
 
-    private static final int THRESHOULD_VALUE = 38;
     private int mSimilarity  = 60;
 
     private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
@@ -121,22 +120,6 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                     mIDCardRecognition = new IDCardRecognition(FaceDetectorActivity.this, myHandler,
                             mIDCardRecListener);
                     mIDCardRecognition.start();
-
-                    Camera.CameraInfo cameraInfo = new Camera.CameraInfo();
-                    for (int camIdx = 0; camIdx < Camera.getNumberOfCameras(); ++camIdx) {
-                        Camera.getCameraInfo(camIdx, cameraInfo);
-                        if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_BACK) {
-                            Log.d(TAG, "device has back camera!");
-//                            break;
-                        }
-
-                        if (cameraInfo.facing == Camera.CameraInfo.CAMERA_FACING_FRONT) {
-                            Log.d(TAG, "device has front camera!");
-                            isFrontCamera = true;
-                            mOpenCvCameraView.setCameraIndex(CameraBridgeViewBase.CAMERA_ID_FRONT);
-                            break;
-                        }
-                    }
                 }
                 break;
                 default: {
@@ -172,11 +155,19 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         String server = Constant.readServerInfo().trim();
         if (!TextUtils.isEmpty(server)) {
             String info[] = server.split(":");
-            SERVER_IP = info[0];
-            SERVER_PORT = Integer.parseInt(info[1]);
+
+            if (info.length > 0) {
+
+                THRESHOLD_VALUE = Integer.parseInt(info[0]);
+                if (info.length == 3) {
+                    SERVER_IP = info[1];
+                    SERVER_PORT = Integer.parseInt(info[2]);
+                }
+            }
+
         }
 
-        Log.d(TAG, SERVER_IP + ":" + SERVER_PORT);
+        Log.d(TAG, SERVER_IP + ":" + SERVER_PORT + ":" + THRESHOLD_VALUE);
     }
 
     private void findViews() {
@@ -212,19 +203,20 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         if (mIDCardRecognition != null) {
             mIDCardRecognition.close();
         }
+        mSoundPool.release();
 
-        prepareVoice();
     }
 
     @Override
     public void onResume() {
         super.onResume();
         mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        prepareVoice();
+
     }
 
     public void onDestroy()
     {
-        mSoundPool.release();
         super.onDestroy();
     }
 
@@ -257,6 +249,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         if (!isFaceComparing) {
             synchronized (Constant.LOCK) {
                 ArrayList<FaceInfo> faceList = faceDetection();
+//                ArrayList<FaceInfo> faceList = new ArrayList<>();
 
                 if (faceList.size() >= 1 && updateImage) {
                     Rect rect = faceList.get(0).getBbox();
@@ -265,10 +258,10 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                     int faceCenterX = rect.getX() + rect.getWidth() / 2;
                     int faceCenterY = rect.getY() + rect.getHeight() / 2;
 
-                    if (((mWidth / 2 - 100) < faceCenterX) &&
-                            (faceCenterX < (mWidth / 2 + 100)) &&
-                            ((mHeight / 2 - 100) < faceCenterY) &&
-                            (faceCenterY < (mHeight / 2 + 100))) {
+                    if (((mWidth / 2 - 150) < faceCenterX) &&
+                            (faceCenterX < (mWidth / 2 + 150)) &&
+                            ((mHeight / 2 - 150) < faceCenterY) &&
+                            (faceCenterY < (mHeight / 2 + 150))) {
                         updateImage = false;
                         mSelectedBitmap = Bitmap.createBitmap(mRgba.cols(), mRgba.rows(), Bitmap
                                 .Config.RGB_565);
@@ -293,12 +286,12 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             }
         }
 
-        if (isFrontCamera) {
+//        if (isFrontCamera) {
             Core.flip(mRgba, mFlipRgba, 1);
             return mFlipRgba;
-        } else {
-            return mRgba;
-        }
+//        } else {
+//            return mRgba;
+//        }
     }
 
     /**
@@ -345,6 +338,11 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         synchronized (Constant.LOCK) {
             isFaceComparing = true;
 
+            myHandler.sendEmptyMessage(Constant.COMPARING_MESSAGE);
+
+            myHandler.removeMessages(Constant.CLEAR_ID_INFO_MESSAGE);
+            myHandler.removeMessages(Constant.CLEAR_CAMERA_IMAGE_MESSAGE);
+
             Log.d(TAG, "faceCompare start");
 
             mSelectedRgb.release();
@@ -384,11 +382,11 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
 
                 mSimilarity = Math.round(similarity * 100);
 
-//                if (connectWithTcp(SERVER_IP, SERVER_PORT)) {
-//                    Log.d(TAG, "Finished uploading the data to server");
-//                } else {
-//                    Log.d(TAG, "Error when Uploading the data to server");
-//                }
+                if (connectWithTcp(SERVER_IP, SERVER_PORT)) {
+                    Log.d(TAG, "Finished uploading the data to server");
+                } else {
+                    Log.d(TAG, "Error when Uploading the data to server");
+                }
 
                 Message msg = new Message();
                 msg.what = Constant.SHOW_FACE_COMPARE_RESULT_MESSAGE;
@@ -397,6 +395,10 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                 msg.setData(bundle);
                 myHandler.sendMessage(msg);
             }
+
+            myHandler.sendEmptyMessageDelayed(Constant.CLEAR_ID_INFO_MESSAGE, 5000);
+            myHandler.sendEmptyMessageDelayed(Constant.CLEAR_CAMERA_IMAGE_MESSAGE, 5000);
+
             Log.d(TAG, "faceCompare end");
 
         }
@@ -478,7 +480,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                 case Constant.CLEAR_ID_INFO_MESSAGE:
                     clearIdInfo();
                     break;
-                case CLEAR_CAMERA_IMAGE_MESSAGE:
+                case Constant.CLEAR_CAMERA_IMAGE_MESSAGE:
                     if (isFaceComparing) {
                         myHandler.sendEmptyMessageDelayed(Constant.CLEAR_CAMERA_IMAGE_MESSAGE,
                                 5000);
@@ -495,10 +497,17 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                         mCompareResult.setVisibility(View.INVISIBLE);
                     }
                     break;
+                case Constant.COMPARING_MESSAGE:
+                    mCompareResult.setVisibility(View.VISIBLE);
+                    mCompareResult.setTextColor(getResources().getColor(R.color.green));
+                    mCompareResult.setText("正在验证中...");
+                    break;
+
                 case Constant.SHOW_FACE_COMPARE_RESULT_MESSAGE:
                     float similarity = msg.getData().getFloat("similarity");
 //                    Toast.makeText(FaceDetectorActivity.this, "" + similarity, Toast.LENGTH_LONG).show();
-                    if (similarity > THRESHOULD_VALUE) {
+                    if (similarity > THRESHOLD_VALUE) {
+                        Log.d(TAG, "soundID == " + soundID.size());
                         mSoundPool.play(soundID.get(1), 1, 1, 0, 0, 1);
                         mCompareValue.setTextColor(getResources().getColor(R.color.green));
                         mCompareValue.setVisibility(View.VISIBLE);
@@ -509,6 +518,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                         mCompareResult.setText("验证成功");
 
                     } else {
+                        Log.d(TAG, "soundID == " + soundID.size());
                         mSoundPool.play(soundID.get(2), 1, 1, 0, 0, 1);
                         mCompareValue.setTextColor(getResources().getColor(R.color.red));
                         mCompareValue.setVisibility(View.VISIBLE);
@@ -528,7 +538,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
 
     private void clearIdInfo() {
         if (isFaceComparing) {
-            myHandler.sendEmptyMessageDelayed(Constant.CLEAR_ID_INFO_MESSAGE, 5000);
+            myHandler.sendEmptyMessageDelayed(CLEAR_ID_INFO_MESSAGE, 5000);
             return;
         }
         mIDCardRecListener.onResp(null);
@@ -552,6 +562,11 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             if (info == null) {
                 mIdImage.setImageBitmap(null);
                 lastCardMsg = null;
+
+                if (mIdBitmap != null) {
+                    mIdBitmap.recycle();
+                    mIdBitmap = null;
+                }
 
                 mIdName.setText("");
                 mIdSex.setText("");
@@ -591,7 +606,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             mIdImage.setImageBitmap(mIdBitmap);
 
             myHandler.sendEmptyMessage(Constant.START_FACE_COMPARE_MESSAGE);
-            myHandler.sendEmptyMessageDelayed(Constant.CLEAR_ID_INFO_MESSAGE, 5000);
+            myHandler.sendEmptyMessageDelayed(CLEAR_ID_INFO_MESSAGE, 10*1000);
 
         }
     };
@@ -628,6 +643,12 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         Socket socket;
         boolean updated = false;
 
+        if (TextUtils.isEmpty(ip)) {
+            return false;
+        }
+
+
+
         try {
             socket = new Socket(ip, port);
 
@@ -639,7 +660,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             System.arraycopy(header, 0, data, 0, header.length);    //8
 
 //            System.arraycopy(int2Bytes(80+256*60), 0, data, 8, 4);   //4
-            System.arraycopy(int2Bytes(mSimilarity + 256 * THRESHOULD_VALUE), 0, data, 8, 4);   //4
+            System.arraycopy(int2Bytes(mSimilarity + 256 * THRESHOLD_VALUE), 0, data, 8, 4);   //4
 
 //            byte[] szName = "李明".getBytes("GB2312");
             byte[] szName = lastCardMsg.getName().getBytes("GB2312");

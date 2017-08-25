@@ -21,6 +21,7 @@ public class Constant {
     public static final int LOST_ID_CARD_MESSAGE = 10011;
 
     public static final int START_FACE_COMPARE_MESSAGE = 10020;
+    public static final int COMPARING_MESSAGE = 10021;
 
     public static final int CLEAR_ID_INFO_MESSAGE = 10030;
     public static final int CLEAR_CAMERA_IMAGE_MESSAGE = 10031;
