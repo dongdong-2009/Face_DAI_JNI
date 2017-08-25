@@ -8,5 +8,3 @@
 /build
 /captures
 .externalNativeBuild
-openCVLibrary/build
-app/src/main/jniLibs/armeabi-v7a/libnative-lib.so
