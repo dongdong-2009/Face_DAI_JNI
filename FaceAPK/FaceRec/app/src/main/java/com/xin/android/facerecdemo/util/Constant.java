@@ -25,6 +25,7 @@ public class Constant {
 
     public static final int CLEAR_ID_INFO_MESSAGE = 10030;
     public static final int CLEAR_CAMERA_IMAGE_MESSAGE = 10031;
+    public static final int NEAR_TO_DISPLAY_MESSAGE = 10032;
 
     public static final int SHOW_FACE_COMPARE_RESULT_MESSAGE = 10040;
 

@@ -3,8 +3,6 @@ package com.xin.android.facerecdemo.util;
 import com.xin.android.facerecdemo.bean.FaceInfo;
 import com.xin.android.facerecdemo.bean.ImageData;
 
-import org.opencv.android.OpenCVLoader;
-
 import java.util.ArrayList;
 
 /**
@@ -34,11 +32,19 @@ public class JniLoader {
         return instance;
     }
 
-    public int callInitFaceRec(int channels, String path) {
-        System.loadLibrary("face_rec");
-        OpenCVLoader.initDebug();
-//        System.loadLibrary("opencv_java3");
+    public void loadLibrary() {
+        System.loadLibrary("abc");
+
         System.loadLibrary("native-lib");
+
+        System.loadLibrary("face_rec");
+//        OpenCVLoader.initDebug();
+        System.loadLibrary("opencv_java3");
+
+        setLogEnable(false);
+    }
+
+    public int callInitFaceRec(int channels, String path) {
 
         return initFaceRecWithPath(channels, path);
     }
@@ -78,4 +84,17 @@ public class JniLoader {
     public native float faceRecCompare(float[] imgFea1, float[] imgFea2);
 
     public native int faceRecDeinit();
+
+/*    public native boolean hasProductKey();
+
+    public native String getDeviceId();
+
+    public native boolean enterProductKey(String key);*/
+
+    public native boolean checkDeviceState(String path);
+    public native String getDeviceUuid();
+    public native boolean registerDeviceKey(String path, String key);
+
+    public native void setLogEnable(boolean enable);
+
 }

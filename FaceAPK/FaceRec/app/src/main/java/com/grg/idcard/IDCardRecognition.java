@@ -83,13 +83,9 @@ public class IDCardRecognition extends Thread {
 
 	private void init() {
 		try {
-            Log.i(TAG, "init IDCardManager0000000000000");
-
             mIDCardManager = new IDCardManager(mContext);
-            Log.i(TAG, "init IDCardManager1111111111111111");
 
             mIDCardManager.SDT_ResetSAM();
-			Log.i(TAG, "init IDCardManager2222222222222");
 		} catch (Exception e) {
 			Log.w(TAG, "IDCardRecognition", e);
 		}

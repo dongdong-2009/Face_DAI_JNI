@@ -34,7 +34,6 @@ import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.Utils;
-import org.opencv.core.Core;
 import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
 import org.opencv.imgcodecs.Imgcodecs;
@@ -68,7 +67,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
 
     private String SERVER_IP;
     private int SERVER_PORT = 5958;
-    private int THRESHOLD_VALUE = 50;
+    private int THRESHOLD_VALUE = 55;
 
     private Mat mRgba;
     private Mat mGray;
@@ -95,6 +94,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
     private TextView mIdUsefulDate;
     private TextView mCompareResult;
     private TextView mCompareValue;
+    private TextView mNearToDisplay;
 
     private String gPath;
     private int mHeight = 0;
@@ -137,6 +137,9 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
     public void onCreate(Bundle savedInstanceState) {
         Log.i(TAG, "called onCreate");
         super.onCreate(savedInstanceState);
+
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager
+                .LayoutParams.FLAG_FULLSCREEN);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
         setContentView(R.layout.face_detect_activity);
@@ -157,7 +160,6 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             String info[] = server.split(":");
 
             if (info.length > 0) {
-
                 THRESHOLD_VALUE = Integer.parseInt(info[0]);
                 if (info.length == 3) {
                     SERVER_IP = info[1];
@@ -189,6 +191,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         mIdUsefulDate = (TextView) findViewById(R.id.id_useful_data_info);
         mCompareResult = (TextView) findViewById(R.id.compare_result_text);
         mCompareValue = (TextView) findViewById(R.id.compare_result_value);
+        mNearToDisplay = (TextView) findViewById(R.id.near_to_display);
     }
 
     @Override
@@ -254,11 +257,12 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                 if (faceList.size() >= 1 && updateImage) {
                     Rect rect = faceList.get(0).getBbox();
 
-                    Log.d(TAG, "faceInfo rect == " + rect.toString());
+//                    Log.d(TAG, "faceInfo rect == " + rect.toString());
                     int faceCenterX = rect.getX() + rect.getWidth() / 2;
                     int faceCenterY = rect.getY() + rect.getHeight() / 2;
 
-                    if (((mWidth / 2 - 150) < faceCenterX) &&
+                    if (rect.getHeight() > 250 && rect.getWidth() > 250 &&
+                            ((mWidth / 2 - 150) < faceCenterX) &&
                             (faceCenterX < (mWidth / 2 + 150)) &&
                             ((mHeight / 2 - 150) < faceCenterY) &&
                             (faceCenterY < (mHeight / 2 + 150))) {
@@ -271,24 +275,31 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                         Utils.matToBitmap(mSelectedRgb, mSelectedBitmap, false);
                         myHandler.sendEmptyMessage(Constant.FIND_ONE_FACE_MESSAGE);
                         myHandler.sendEmptyMessageDelayed(Constant.CLEAR_CAMERA_IMAGE_MESSAGE,
-                                1000 * 20);
+                                1000 * 10);
                     }
+
+                    //for (int i = 0; i < faceList.size(); i++) {
+                    Rect faceRect = faceList.get(0).getBbox();
+                    Imgproc.rectangle(mRgba, faceRect.tl(), faceRect.br(), FACE_RECT_COLOR, 3);
+                    if (updateImage) {
+                        myHandler.sendEmptyMessage(Constant.NEAR_TO_DISPLAY_MESSAGE);
+                    }
+
+//                    }
+
 
                 }
                 //else if (faceList.size() > 1) {
                 //    myHandler.sendEmptyMessage(Constant.FIND_MULT_FACE_MESSAGE);
                 //}
 
-                for (int i = 0; i < faceList.size(); i++) {
-                    Rect faceRect = faceList.get(i).getBbox();
-                    Imgproc.rectangle(mRgba, faceRect.tl(), faceRect.br(), FACE_RECT_COLOR, 3);
-                }
             }
         }
 
 //        if (isFrontCamera) {
-            Core.flip(mRgba, mFlipRgba, 1);
-            return mFlipRgba;
+//            Core.flip(mRgba, mFlipRgba, 1);
+//            return mFlipRgba;
+            return mRgba;
 //        } else {
 //            return mRgba;
 //        }
@@ -456,6 +467,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                     break;
                 case Constant.FIND_ONE_FACE_MESSAGE:
                     mMultFaceMessage.setVisibility(View.GONE);
+                    mNearToDisplay.setVisibility(View.GONE);
                     mCurrentImage.setImageBitmap(mSelectedBitmap);
                     break;
                 case Constant.FIND_MULT_FACE_MESSAGE:
@@ -529,6 +541,9 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                         mCompareResult.setText("验证失败");
                     }
 
+                    break;
+                case Constant.NEAR_TO_DISPLAY_MESSAGE:
+                    mNearToDisplay.setVisibility(View.VISIBLE);
                     break;
                 default:
                     break;
