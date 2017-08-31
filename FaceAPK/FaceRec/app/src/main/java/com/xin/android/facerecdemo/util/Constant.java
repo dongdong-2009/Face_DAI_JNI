@@ -20,12 +20,14 @@ public class Constant {
     public static final int FIND_ID_CARD_MESSAGE = 10010;
     public static final int LOST_ID_CARD_MESSAGE = 10011;
 
-    public static final int START_FACE_COMPARE_MESSAGE = 10020;
+//    public static final int START_FACE_COMPARE_MESSAGE = 10020;
     public static final int COMPARING_MESSAGE = 10021;
+    public static final int GET_ID_INFORMATION_MESSAGE = 10022;
 
     public static final int CLEAR_ID_INFO_MESSAGE = 10030;
-    public static final int CLEAR_CAMERA_IMAGE_MESSAGE = 10031;
+//    public static final int CLEAR_CAMERA_IMAGE_MESSAGE = 10031;
     public static final int NEAR_TO_DISPLAY_MESSAGE = 10032;
+    public static final int CLEAR_LOCAL_IMAGE_MESSAGE = 10033;
 
     public static final int SHOW_FACE_COMPARE_RESULT_MESSAGE = 10040;
 

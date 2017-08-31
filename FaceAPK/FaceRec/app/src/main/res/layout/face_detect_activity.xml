@@ -301,7 +301,7 @@
         android:layout_alignParentTop="true"
         android:layout_marginTop="30dp"
         android:gravity="center_horizontal"
-        android:text="请靠近镜头，将脸显示在屏幕中间"
+        android:text="先刷身份证，然后靠近镜头，将脸显示在屏幕中间"
         android:textColor="#FF0000"
         android:textSize="24sp"
         android:visibility="gone"/>
