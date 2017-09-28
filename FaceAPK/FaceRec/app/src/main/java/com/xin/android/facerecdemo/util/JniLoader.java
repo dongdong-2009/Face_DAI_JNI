@@ -49,12 +49,24 @@ public class JniLoader {
         return initFaceRecWithPath(channels, path);
     }
 
-    public float[] callFaceRecExtract(ImageData imgColor, ImageData imgGray) {
-        return faceRecExtract(0, imgColor, imgGray);
+//    public float[] callFaceRecExtract(ImageData imgColor, ImageData imgGray) {
+//        return faceRecExtract(0, imgColor, imgGray);
+//    }
+//
+//    public ArrayList<FaceInfo> callFaceRecDetect(int channelID, ImageData imgColor, ImageData imgGray) {
+//        return faceRecDetect(channelID, imgColor, imgGray);
+//    }
+
+    public float[] callFaceRecExtract2(long matColor, long matGray) {
+        return faceRecExtract2(0, matColor, matGray);
     }
 
-    public ArrayList<FaceInfo> callFaceRecDetect(int channelID, ImageData imgColor, ImageData imgGray) {
-        return faceRecDetect(channelID, imgColor, imgGray);
+    public ArrayList<FaceInfo> callFaceRecDetect2(long matColor, long matGray) {
+        return faceRecDetect2(0, matColor, matGray);
+    }
+
+    public int faceExtractResult() {
+        return getNativeExtractResult();
     }
 
     public float callFaceCampare(float[] src, float[] dst) {
@@ -78,8 +90,11 @@ public class JniLoader {
 
     public native float[] faceRecExtract(int channelID, ImageData imgColor, ImageData imgGray);
 
-    public native ArrayList<FaceInfo> faceRecDetect(int channelID, ImageData imgColor, ImageData
-            imgGray);
+    public native ArrayList<FaceInfo> faceRecDetect(int channelID, ImageData imgColor, ImageData imgGray);
+
+    public native float[] faceRecExtract2(int channelID, long matColor, long matGray);
+
+    public native ArrayList<FaceInfo> faceRecDetect2(int channelID, long matColor, long matGray);
 
     public native float faceRecCompare(float[] imgFea1, float[] imgFea2);
 
@@ -94,6 +109,8 @@ public class JniLoader {
     public native boolean checkDeviceState(String path);
     public native String getDeviceUuid();
     public native boolean registerDeviceKey(String path, String key);
+
+    public native int getNativeExtractResult();
 
     public native void setLogEnable(boolean enable);
 

@@ -36,6 +36,7 @@ import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.Utils;
 import org.opencv.core.Mat;
 import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
@@ -98,6 +99,9 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
     private String gPath;
     private int mHeight = 0;
     private int mWidth = 0;
+
+    private int mIdWidth;
+    private int mIdHeight;
 
     private int mSimilarity  = 60;
 
@@ -248,6 +252,11 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             synchronized (Constant.LOCK) {
                 ArrayList<FaceInfo> faceList = faceDetection();
 
+                for (int j = 0; j< faceList.size(); j++) {
+                    Log.d(TAG, "face score == " + faceList.get(j).getScore());
+                }
+
+
                 if (faceList.size() >0 && updateImage) {
                     Rect rect = faceList.get(0).getBbox();
 
@@ -255,31 +264,61 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                     int faceCenterX = rect.getX() + rect.getWidth() / 2;
                     int faceCenterY = rect.getY() + rect.getHeight() / 2;
 
-                    if (rect.getHeight() > 250 && rect.getWidth() > 250 &&
-                            ((mWidth / 2 - 150) < faceCenterX) &&
-                            (faceCenterX < (mWidth / 2 + 150)) &&
-                            ((mHeight / 2 - 150) < faceCenterY) &&
-                            (faceCenterY < (mHeight / 2 + 150))) {
+                    if (rect.getHeight() > 50 && rect.getWidth() > 50 &&
+                            ((mWidth / 2 - 250) < faceCenterX) &&
+                            (faceCenterX < (mWidth / 2 + 250)) &&
+                            ((mHeight / 2 - 250) < faceCenterY) &&
+                            (faceCenterY < (mHeight / 2 + 250))) {
                         updateImage = false;
-                        mSelectedBitmap = Bitmap.createBitmap(mRgba.cols(), mRgba.rows(), Bitmap
+//                        mSelectedBitmap = Bitmap.createBitmap(mRgba.cols(), mRgba.rows(), Bitmap
+//                                .Config.RGB_565);
+
+
+                        Bitmap originalBitmap;
+//                        originalBitmap = Bitmap.createBitmap(mRgba.cols(), mRgba.rows(), Bitmap
+//                                .Config.RGB_565);
+                        originalBitmap = Bitmap.createBitmap(mRgba.cols(), mRgba.rows(), Bitmap
                                 .Config.RGB_565);
+                        Utils.matToBitmap(mRgba, originalBitmap, false);
+                        saveBitmap(originalBitmap, "original.jpg");
+                        originalBitmap.recycle();
+
                         mSelectedRgb = mRgba.clone();
                         mSelectedGray = mGray.clone();
 
-                        Utils.matToBitmap(mSelectedRgb, mSelectedBitmap, false);
+                        org.opencv.core.Rect faceRect = new org.opencv.core.Rect(rect.getX(),
+                                rect.getY(), rect.getWidth(), rect.getHeight());
+
+                        Mat faceMat = new Mat(mSelectedRgb, faceRect);
+                        double rate = (1.0*rect.getWidth()/mIdWidth > 1.0*rect.getHeight()
+                                /mIdHeight)? 1.0*mIdHeight/rect.getHeight():1.0*mIdWidth/rect
+                                .getWidth();
+
+                        Mat reszieMat = new Mat();
+                        Imgproc.resize(faceMat, reszieMat, new Size(rate *rect.getWidth(), rate *
+                                rect.getHeight()));
+
+                        Log.d(TAG, "resizeMat  == " + reszieMat.toString());
+
+                        mSelectedBitmap = Bitmap.createBitmap(reszieMat.cols(), reszieMat.rows(), Bitmap
+                                .Config.RGB_565);
+//                        Utils.matToBitmap(mSelectedRgb, mSelectedBitmap, false);
+//                        Utils.matToBitmap(faceMat, mSelectedBitmap, false);
+                        Utils.matToBitmap(reszieMat, mSelectedBitmap, false);
+                        faceMat.release();
+                        reszieMat.release();
                         myHandler.sendEmptyMessage(Constant.FIND_ONE_FACE_MESSAGE);
 
                         mSelectedRgb.release();
                         mSelectedGray.release();
                     }
 
-                    //for (int i = 0; i < faceList.size(); i++) {
-                    Rect faceRect = faceList.get(0).getBbox();
-                    Imgproc.rectangle(mRgba, faceRect.tl(), faceRect.br(), FACE_RECT_COLOR, 3);
-                    if (updateImage) {
-                        myHandler.sendEmptyMessage(Constant.NEAR_TO_DISPLAY_MESSAGE);
+                        Rect faceRect = faceList.get(0).getBbox();
+                        Imgproc.rectangle(mRgba, faceRect.tl(), faceRect.br(), FACE_RECT_COLOR, 3);
+                        if (updateImage) {
+                            myHandler.sendEmptyMessage(Constant.NEAR_TO_DISPLAY_MESSAGE);
+                        }
                     }
-                }
 
             }
         }
@@ -315,9 +354,89 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         new Thread(new Runnable() {
             @Override
             public void run() {
-                faceCompare();
+//                faceCompare();
+                faceCompareMat();
             }
         }).start();
+    }
+
+    private void faceCompareMat() {
+        synchronized (Constant.LOCK) {
+
+            if (!hasIdInfo) {
+                myHandler.sendEmptyMessage(Constant.CLEAR_LOCAL_IMAGE_MESSAGE);
+                return;
+            }
+
+            myHandler.removeMessages(Constant.CLEAR_ID_INFO_MESSAGE);
+            myHandler.sendEmptyMessage(Constant.COMPARING_MESSAGE);
+
+            Log.d(TAG, "faceCompare start");
+//
+//            Mat originalColorMat = Imgcodecs.imread(gPath + "/original.jpg");
+//            Mat originalGrayMat = new Mat();
+//            Imgproc.cvtColor(originalColorMat, originalGrayMat, Imgproc.COLOR_BGR2GRAY);
+//            JniLoader.getInstance().callFaceRecDetect2(originalColorMat.getNativeObjAddr(),
+//                    originalGrayMat.getNativeObjAddr());
+//
+
+            isFaceComparing = true;
+
+
+            saveBitmap(mSelectedBitmap, "selected.jpg");
+            saveBitmap(mIdBitmap, "id.jpg");
+
+            Mat idColorMat = Imgcodecs.imread(gPath + "/id.jpg");
+            Mat idGrayMat = new Mat();
+            Imgproc.cvtColor(idColorMat, idGrayMat, Imgproc.COLOR_BGR2GRAY);
+            Log.d(TAG, "callFaceRecExtract 111 start");
+            float idFeatures[] = JniLoader.getInstance().callFaceRecExtract2(idColorMat.getNativeObjAddr(),
+                    idGrayMat.getNativeObjAddr());
+            Log.d(TAG, "callFaceRecExtract 111 end");
+
+
+            Mat selectedColorMat = Imgcodecs.imread(gPath + "/selected.jpg");
+            Mat selectedGrayMat = new Mat();
+            Imgproc.cvtColor(selectedColorMat, selectedGrayMat, Imgproc.COLOR_BGR2GRAY);
+            Log.d(TAG, "callFaceRecExtract 222 start");
+            float selectedFeatures[] = JniLoader.getInstance().callFaceRecExtract2
+                    (selectedColorMat.getNativeObjAddr(), selectedGrayMat.getNativeObjAddr());
+            Log.d(TAG, "callFaceRecExtract 222 start");
+            int faceExtractResult = JniLoader.getInstance().faceExtractResult();
+
+            float similarity;
+            if (faceExtractResult != 0) {
+                similarity = 0.0f;
+            } else {
+                similarity = JniLoader.getInstance().callFaceCampare(idFeatures, selectedFeatures);
+            }
+            Log.d(TAG, "Finish the compare, similarity == " + similarity);
+            if (Float.isNaN(similarity)) {
+                Log.e(TAG, "Float.NaN");
+            } else {
+                mSimilarity = Math.round(similarity * 100);
+
+                if (connectWithTcp(SERVER_IP, SERVER_PORT)) {
+                    Log.d(TAG, "Finished uploading the data to server");
+                } else {
+                    Log.d(TAG, "Error when Uploading the data to server");
+                }
+
+                Message msg = new Message();
+                msg.what = Constant.SHOW_FACE_COMPARE_RESULT_MESSAGE;
+                Bundle bundle = new Bundle();
+                bundle.putFloat("similarity", mSimilarity);
+                msg.setData(bundle);
+                myHandler.sendMessage(msg);
+            }
+
+            myHandler.sendEmptyMessageDelayed(Constant.CLEAR_ID_INFO_MESSAGE, 3 * 1000);
+
+            Log.d(TAG, "faceCompare end");
+//            hasCompared = true;
+//            updateImage = true;
+            isFaceComparing = false;
+        }
     }
 
     private void faceCompare() {
@@ -328,12 +447,10 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                 return;
             }
 
-
             myHandler.removeMessages(Constant.CLEAR_ID_INFO_MESSAGE);
             myHandler.sendEmptyMessage(Constant.COMPARING_MESSAGE);
 
             isFaceComparing = true;
-
 
             Log.d(TAG, "faceCompare start");
 
@@ -347,8 +464,15 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             ImageData idColorSrc = getImageData(idColorMat);
             ImageData idGraySrc = getImageData(idGrayMat);
 
-            float idFeatures[] = JniLoader.getInstance().callFaceRecExtract(idColorSrc,
-                    idGraySrc);
+            Log.d(TAG, "callFaceRecExtract 111 start");
+
+//            float idFeatures[] = JniLoader.getInstance().callFaceRecExtract(idColorSrc,
+//                    idGraySrc);
+            float idFeatures[] = JniLoader.getInstance().callFaceRecExtract2(idColorMat.getNativeObjAddr(),
+                    idGrayMat.getNativeObjAddr());
+//            float idFeatures[] = JniLoader.getInstance().callFaceRecExtract(idGraySrc,
+//                    idGraySrc);
+            Log.d(TAG, "callFaceRecExtract 111 end");
 
             Mat selectedColorMat = Imgcodecs.imread(gPath + "/selected.jpg");
             Mat selectedGrayMat = new Mat();
@@ -357,8 +481,15 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             ImageData selectedColor = getImageData(selectedColorMat);
             ImageData selectedGray = getImageData(selectedGrayMat);
 
-            float selectedFeatures[] = JniLoader.getInstance().callFaceRecExtract(selectedColor,
-                    selectedGray);
+            Log.d(TAG, "callFaceRecExtract 222 start");
+//            float selectedFeatures[] = JniLoader.getInstance().callFaceRecExtract(selectedColor,
+//                    selectedGray);
+            float selectedFeatures[] = JniLoader.getInstance().callFaceRecExtract2
+                    (selectedColorMat.getNativeObjAddr(), selectedGrayMat.getNativeObjAddr());
+            Log.d(TAG, "callFaceRecExtract 222 start");
+
+//            float selectedFeatures[] = JniLoader.getInstance().callFaceRecExtract(selectedGray,
+//                    selectedGray);
 
             float similarity = JniLoader.getInstance().callFaceCampare(idFeatures, selectedFeatures);
             Log.d(TAG, "Finish the compare, similarity == " + similarity);
@@ -385,8 +516,8 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             myHandler.sendEmptyMessageDelayed(Constant.CLEAR_ID_INFO_MESSAGE, 3 * 1000);
 
             Log.d(TAG, "faceCompare end");
-            hasCompared = true;
-            updateImage = true;
+//            hasCompared = true;
+//            updateImage = true;
             isFaceComparing = false;
         }
     }
@@ -417,7 +548,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         ImageData imgColor = getImageData(mRgba);
         ImageData imgGray = getImageData(mGray);
 
-        return JniLoader.getInstance().callFaceRecDetect(0, imgColor, imgGray);
+        return JniLoader.getInstance().callFaceRecDetect2(mRgba.getNativeObjAddr(), mGray.getNativeObjAddr());
     }
 
     private ImageData getImageData(Mat mat) {
@@ -503,6 +634,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
                     break;
                 case Constant.GET_ID_INFORMATION_MESSAGE:
                     hasIdInfo = true;
+//                    startFaceCompare();
                     break;
                 default:
                     break;
@@ -582,6 +714,10 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             mIdUsefulDate.setText(info.getUsefulStartDate() + " 至 " + info.getUsefulEndDate());
             mIdBitmap = BitmapFactory.decodeByteArray(info.getPortrait(), 0, info.getPortrait().length);
             mIdImage.setImageBitmap(mIdBitmap);
+            Log.d(TAG, "mIdBitmap w&h == " + mIdBitmap.getWidth() + "*" + mIdBitmap.getHeight());
+
+            mIdWidth = mIdBitmap.getWidth();
+            mIdHeight = mIdBitmap.getHeight();
 
             myHandler.removeMessages(Constant.CLEAR_ID_INFO_MESSAGE);
             myHandler.sendEmptyMessage(Constant.GET_ID_INFORMATION_MESSAGE);
