@@ -13,7 +13,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-
+import android.os.Environment;
 import com.xin.android.facerecdemo.R;
 import com.xin.android.facerecdemo.util.JniLoader;
 
@@ -28,7 +28,7 @@ public class VerifyActivity extends Activity implements View.OnClickListener {
     private Button mEnterKey;
     private String mPath;
 
-    private boolean NEED_KEY = false;
+    private boolean NEED_KEY = true;
 
 
     @Override
@@ -45,8 +45,9 @@ public class VerifyActivity extends Activity implements View.OnClickListener {
             finish();
         }
 
-        mPath = this.getFilesDir().getAbsolutePath() + File.separator;
-
+        //mPath = this.getFilesDir().getAbsolutePath() + File.separator;
+        mPath = Environment.getExternalStorageDirectory().getAbsolutePath()
+                + "/FaceRec/";
         JniLoader.getInstance().loadLibrary();
 
         mDeviceInfo = (TextView) findViewById(R.id.device_info);

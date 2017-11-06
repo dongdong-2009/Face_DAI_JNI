@@ -66,7 +66,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
 
     private String SERVER_IP;
     private int SERVER_PORT = 5958;
-    private int THRESHOLD_VALUE = 55;
+    private int THRESHOLD_VALUE = 52;
 
     private Mat mRgba;
     private Mat mGray;
@@ -148,6 +148,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
 
         gPath = Environment.getExternalStorageDirectory().getAbsolutePath()
                 + "/FaceRec/";
+        Log.d(TAG, "gptah result == " + gPath);
         int result;
         result = JniLoader.getInstance().callInitFaceRec(1, gPath);
         Log.d(TAG, "callInitFaceRec result == " + result);
