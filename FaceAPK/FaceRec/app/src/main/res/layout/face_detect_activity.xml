@@ -261,7 +261,34 @@
 
                         tools:text="1522.10.09 至 1600.01.01"/>
                 </LinearLayout>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="40dp"
+                    android:orientation="horizontal"
+                    android:layout_gravity="center">
 
+
+                    <TextView
+                        android:id="@+id/id_version_data_text"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="8"
+                        android:text="                      Ver："
+                        android:textColor="#B5B528"
+                        android:textSize="20sp"/>
+
+                    <TextView
+                        android:id="@+id/id_version_data_info"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="7"
+                        android:lines="1"
+                        android:textColor="#ffffff"
+                        android:textSize="20sp"
+
+                        tools:text="11.11"/>
+                </LinearLayout>
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

@@ -48,7 +48,9 @@ public class JniLoader {
 
         return initFaceRecWithPath(channels, path);
     }
-
+    public int callgetFaceRecVer() {
+        return getFaceRecVer();
+    }
 //    public float[] callFaceRecExtract(ImageData imgColor, ImageData imgGray) {
 //        return faceRecExtract(0, imgColor, imgGray);
 //    }
@@ -99,6 +101,8 @@ public class JniLoader {
     public native float faceRecCompare(float[] imgFea1, float[] imgFea2);
 
     public native int faceRecDeinit();
+
+    public native int getFaceRecVer();
 
 /*    public native boolean hasProductKey();
 

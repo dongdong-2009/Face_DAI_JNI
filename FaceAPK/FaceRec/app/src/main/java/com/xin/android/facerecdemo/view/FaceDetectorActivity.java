@@ -63,7 +63,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
     private IDCardMsg lastCardMsg = null;
 
     private static final String LOCK_BITMAP = "lock_bitmap";
-
+    private String APK_VER = "1";
     private String SERVER_IP;
     private int SERVER_PORT = 5958;
     private int THRESHOLD_VALUE = 52;
@@ -84,6 +84,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
     private ImageView mIdImage;
     private TextView mMultFaceMessage;
 
+    private TextView mIdVer;
     private TextView mIdName;
     private TextView mIdSex;
     private TextView mIdNation;
@@ -156,6 +157,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
             JniLoader.getInstance().callInitFaceRec(1, gPath);
         }
 
+        mIdVer.setText(APK_VER+"."+String.valueOf(JniLoader.getInstance().callgetFaceRecVer()));
 
         String server = Constant.readServerInfo().trim();
         if (!TextUtils.isEmpty(server)) {
@@ -194,6 +196,7 @@ public class FaceDetectorActivity extends Activity implements CvCameraViewListen
         mCompareResult = (TextView) findViewById(R.id.compare_result_text);
         mCompareValue = (TextView) findViewById(R.id.compare_result_value);
         mNearToDisplay = (TextView) findViewById(R.id.near_to_display);
+        mIdVer = (TextView) findViewById(R.id.id_version_data_info);
     }
 
     @Override
